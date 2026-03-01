@@ -1,0 +1,11 @@
+.git
+*.md
+datafiles/
+postman/
+.env
+.env.*
+!.env.example
+docker-compose.yml
+.github/
+scripts/
+.golangci.yml

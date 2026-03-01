@@ -1,0 +1,582 @@
+{
+	"info": {
+		"_postman_id": "order-food-api-collection",
+		"name": "Order Food Online API",
+		"description": "API tests for the Order Food Online service",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "1 - List Products",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Returns array of 9', () => {",
+									"    const data = pm.response.json();",
+									"    pm.expect(data).to.be.an('array');",
+									"    pm.expect(data).to.have.length(9);",
+									"});",
+									"pm.test('Products have required fields', () => {",
+									"    const p = pm.response.json()[0];",
+									"    pm.expect(p).to.have.all.keys('id','name','price','currency','category','image');",
+									"    pm.expect(p.image).to.have.all.keys('thumbnail','mobile','tablet','desktop');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/product"
+					}
+				},
+				{
+					"name": "2 - Get Product (valid)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Correct product', () => {",
+									"    const p = pm.response.json();",
+									"    pm.expect(p.id).to.eql('1');",
+									"    pm.expect(p.name).to.eql('Waffle with Berries');",
+									"    pm.expect(p.price).to.eql(6.5);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/product/1"
+					}
+				},
+				{
+					"name": "3 - Get Product (not found)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 404', () => pm.response.to.have.status(404));",
+									"pm.test('Error code', () => pm.expect(pm.response.json().code).to.eql('not_found'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/product/999"
+					}
+				},
+				{
+					"name": "4 - Get Product (invalid ID)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400', () => pm.response.to.have.status(400));",
+									"pm.test('Error code', () => pm.expect(pm.response.json().code).to.eql('bad_request'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/api/product/abc"
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders - Happy Path",
+			"item": [
+				{
+					"name": "5 - Place Order (basic)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Has order ID', () => {",
+									"    const r = pm.response.json();",
+									"    pm.expect(r.id).to.be.a('string');",
+									"    pm.expect(r.id.length).to.be.above(0);",
+									"});",
+									"pm.test('Correct items and currency', () => {",
+									"    const r = pm.response.json();",
+									"    pm.expect(r.items).to.have.length(1);",
+									"    pm.expect(r.products).to.have.length(1);",
+									"    pm.expect(r.total).to.eql(13);",
+									"    pm.expect(r.discounts).to.eql(0);",
+									"    pm.expect(r.currency).to.eql('USD');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":2}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "6 - Place Order (HAPPYHRS coupon)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Coupon applied', () => {",
+									"    const r = pm.response.json();",
+									"    pm.expect(r.couponCode).to.eql('HAPPYHRS');",
+									"    pm.expect(r.discounts).to.be.above(0);",
+									"    pm.expect(r.currency).to.eql('USD');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":2}],\"couponCode\":\"HAPPYHRS\"}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "7 - Place Order (BUYGETONE coupon)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Discount equals lowest item', () => {",
+									"    const r = pm.response.json();",
+									"    pm.expect(r.couponCode).to.eql('BUYGETONE');",
+									"    pm.expect(r.discounts).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":1},{\"productId\":\"5\",\"quantity\":1}],\"couponCode\":\"BUYGETONE\"}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "15 - Place Order (multi items)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('3 items', () => {",
+									"    const r = pm.response.json();",
+									"    pm.expect(r.items).to.have.length(3);",
+									"    pm.expect(r.products).to.have.length(3);",
+									"    pm.expect(r.total).to.be.above(0);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":1},{\"productId\":\"2\",\"quantity\":1},{\"productId\":\"3\",\"quantity\":1}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders - Error Cases",
+			"item": [
+				{
+					"name": "8 - Place Order (invalid coupon)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 422', () => pm.response.to.have.status(422));",
+									"pm.test('Validation error', () => {",
+									"    pm.expect(pm.response.json().code).to.eql('validation');",
+									"    pm.expect(pm.response.json().message).to.include('coupon');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":1}],\"couponCode\":\"INVALID1X\"}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "9 - Place Order (empty items)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 422', () => pm.response.to.have.status(422));",
+									"pm.test('Error about items', () => pm.expect(pm.response.json().message).to.include('item'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "10 - Place Order (negative quantity)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 422', () => pm.response.to.have.status(422));",
+									"pm.test('Error about quantity', () => pm.expect(pm.response.json().message).to.include('quantity'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":-1}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "11 - Place Order (bad product)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 422', () => pm.response.to.have.status(422));",
+									"pm.test('Constraint error', () => pm.expect(pm.response.json().code).to.eql('constraint'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"999\",\"quantity\":1}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "12 - Place Order (no auth)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 401', () => pm.response.to.have.status(401));",
+									"pm.test('Unauthorized', () => pm.expect(pm.response.json().code).to.eql('unauthorized'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":1}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "13 - Place Order (wrong auth)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 403', () => pm.response.to.have.status(403));",
+									"pm.test('Forbidden', () => pm.expect(pm.response.json().code).to.eql('forbidden'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "wrongkey"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":1}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "14 - Place Order (malformed JSON)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 400', () => pm.response.to.have.status(400));",
+									"pm.test('Bad request', () => pm.expect(pm.response.json().code).to.eql('bad_request'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "notjson"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				},
+				{
+					"name": "16 - Place Order (insufficient stock)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 422', () => pm.response.to.have.status(422));",
+									"pm.test('Insufficient stock error', () => {",
+									"    pm.expect(pm.response.json().code).to.eql('insufficient_stock');",
+									"    pm.expect(pm.response.json().message).to.include('insufficient stock');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "api_key",
+								"value": "{{api_key}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"items\":[{\"productId\":\"1\",\"quantity\":99999}]}"
+						},
+						"url": "{{base_url}}/api/order"
+					}
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "17 - Liveness",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/healthz"
+					}
+				},
+				{
+					"name": "18 - Readiness",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status 200', () => pm.response.to.have.status(200));",
+									"pm.test('Status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": "{{base_url}}/readyz"
+					}
+				}
+			]
+		}
+	]
+}

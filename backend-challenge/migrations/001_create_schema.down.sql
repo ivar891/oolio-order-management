@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS order_items;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS promo_codes;
+DROP TABLE IF EXISTS products;

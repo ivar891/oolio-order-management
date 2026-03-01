@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: order-db
+    environment:
+      POSTGRES_DB: orderdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orderdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    container_name: order-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: "8080"
+      MCP_PORT: "8081"
+      API_KEY: "apitest"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/orderdb?sslmode=disable"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+      OTEL_SERVICE_NAME: "order-food-api"
+      COUPON_FILE_URLS: "https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase1.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase2.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase3.gz"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "/server", "--help"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    container_name: order-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4318:4318"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:

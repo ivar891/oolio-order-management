@@ -13,7 +13,7 @@ You can also find spec file [here](https://orderfoodonline.deno.dev/public/opena
 
 - Implement all APIs described in the OpenAPI specification
 - Conform to the OpenAPI specification as close to as possible
-- Implement all features our [demo API server](https://orderfoodonline.deno.dev) has implemented
+- Implement all features our [demo API server](https://orderfoodonline.deno.dev/public/openapi.html) has implemented
 - Validate promo code according to promo code validation logic described below
 
 ### Promo Code Validation
@@ -24,13 +24,7 @@ A promo code is valid if the following rules apply:
 1. Must be a string of length between 8 and 10 characters
 2. It can be found in **at least two** files
 
-> Files containing valid coupons are couponbase1.gz, couponbase2.gz and couponbase3.gz
-
-You can download the files from here
-
-[file 1](https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase1.gz)
-[file 2](https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase2.gz)
-[file 3](https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase3.gz)
+> Files containing valid coupons are in datafiles folder
 
 **Example Promo Codes**
 
