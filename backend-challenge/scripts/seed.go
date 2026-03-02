@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,28 +18,34 @@ func main() {
 
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
+		slog.Error("Failed to connect", slog.Any("error", err))
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	// Run schema migration.
 	if err := runSQL(ctx, pool, "migrations/001_create_schema.up.sql"); err != nil {
-		log.Fatalf("Schema migration failed: %v", err)
+		slog.Error("Schema migration failed", slog.Any("error", err))
+		os.Exit(1)
 	}
-	log.Println("✓ Schema created")
+	slog.Info("✓ Schema created")
 
 	// Seed products and known promo codes.
 	if err := runSQL(ctx, pool, "migrations/002_seed_products.up.sql"); err != nil {
-		log.Fatalf("Product seed failed: %v", err)
+		slog.Error("Product seed failed", slog.Any("error", err))
+		os.Exit(1)
 	}
-	log.Println("✓ 9 products + promo codes seeded")
+	slog.Info("✓ 9 products + promo codes seeded")
 
 	// Print summary.
 	var productCount, promoCount int64
 	pool.QueryRow(ctx, "SELECT COUNT(*) FROM products").Scan(&productCount)
 	pool.QueryRow(ctx, "SELECT COUNT(*) FROM promo_codes").Scan(&promoCount)
-	log.Printf("Summary: %d products, %d promo code entries", productCount, promoCount)
-	log.Println("Note: Bloom filters are loaded from S3 URLs at server startup (not via seed)")
+	slog.Info("Seed summary",
+		slog.Int64("products", productCount),
+		slog.Int64("promo_codes", promoCount),
+	)
+	slog.Info("Note: Bloom filters are loaded from S3 URLs at server startup (not via seed)")
 }
 
 func runSQL(ctx context.Context, pool *pgxpool.Pool, file string) error {

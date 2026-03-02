@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -17,7 +17,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
-// Logging returns middleware that logs request details.
+// Logging returns middleware that logs request details using structured slog.
 func Logging() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +26,13 @@ func Logging() func(http.Handler) http.Handler {
 
 			next.ServeHTTP(wrapped, r)
 
-			log.Printf("%s %s %d %s",
-				r.Method,
-				r.URL.Path,
-				wrapped.statusCode,
-				time.Since(start),
+			slog.InfoContext(r.Context(), "request handled",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.Path),
+				slog.Int("status", wrapped.statusCode),
+				slog.Duration("duration", time.Since(start)),
+				slog.String("ip", r.RemoteAddr),
+				slog.String("user_agent", r.UserAgent()),
 			)
 		})
 	}

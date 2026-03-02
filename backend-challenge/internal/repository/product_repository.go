@@ -12,6 +12,7 @@ import (
 type ProductRepository interface {
 	List(ctx context.Context) ([]models.Product, error)
 	GetByID(ctx context.Context, id string) (*models.Product, error)
+	GetByIDs(ctx context.Context, ids []string) ([]models.Product, error)
 }
 
 type pgProductRepository struct {
@@ -80,6 +81,30 @@ func (r *pgProductRepository) GetByID(ctx context.Context, id string) (*models.P
 		}
 	}
 	return &p, nil
+}
+
+// GetByIDs returns multiple products by their identifier.
+func (r *pgProductRepository) GetByIDs(ctx context.Context, ids []string) ([]models.Product, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name, price, currency, category, stock_quantity,
+		       image_thumb, image_mobile, image_tablet, image_desktop
+		FROM products
+		WHERE id = ANY($1)
+	`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []models.Product
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+	return products, rows.Err()
 }
 
 // scannable is an interface satisfied by both pgx.Rows and pgx.Row.

@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oolio-group/order-management/internal/config"
 	"github.com/oolio-group/order-management/internal/handler"
+	"github.com/oolio-group/order-management/internal/logger"
 	mcpserver "github.com/oolio-group/order-management/internal/mcp"
 	"github.com/oolio-group/order-management/internal/middleware"
 	"github.com/oolio-group/order-management/internal/repository"
@@ -26,12 +29,19 @@ func main() {
 
 	// Load configuration.
 	cfg := config.Load()
-	log.Printf("Starting Order Food Online API on port %d", cfg.Port)
+
+	// Initialize structured logging.
+	appLogger := logger.New(os.Getenv("APP_ENV"), os.Stdout)
+	slog.SetDefault(appLogger)
+	log.SetFlags(0)
+	log.SetOutput(io.Discard) // Redirect standard log to slog (implicitly via SetDefault)
+
+	slog.Info("Starting Order Food Online API", slog.Int("port", cfg.Port))
 
 	// Initialize OpenTelemetry (best-effort, don't fail if Jaeger isn't running).
 	_, otelShutdown, err := telemetry.InitTracer(ctx, cfg.ServiceName, cfg.OTLPEndpoint)
 	if err != nil {
-		log.Printf("WARNING: Failed to initialize OpenTelemetry: %v (continuing without tracing)", err)
+		slog.Warn("Failed to initialize OpenTelemetry", slog.Any("error", err), slog.String("info", "continuing without tracing"))
 		otelShutdown = func(_ context.Context) error { return nil }
 	}
 	defer otelShutdown(ctx) //nolint:errcheck
@@ -46,11 +56,12 @@ func main() {
 	if err := pool.Ping(ctx); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
-	log.Println("Connected to PostgreSQL")
+	slog.Info("Connected to PostgreSQL")
 
 	// Run migrations.
 	if err := runMigrations(ctx, pool); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		slog.Error("Failed to run migrations", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Build bloom filters asynchronously by streaming from S3 URLs.
@@ -85,6 +96,7 @@ func main() {
 
 	// Product endpoints (no auth).
 	mux.HandleFunc("GET /api/product", productHandler.ListProducts)
+	// mux.HandleFunc("GET /api/products", productHandler.ListProducts)
 	mux.HandleFunc("GET /api/product/{productId}", productHandler.GetProduct)
 
 	// Order endpoints (auth required).
@@ -132,9 +144,9 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Server shutdown error: %v", err)
+		slog.Error("Server shutdown error", slog.Any("error", err))
 	}
-	log.Println("Server stopped")
+	slog.Info("Server stopped")
 }
 
 // runMigrations executes SQL migration files.
@@ -152,7 +164,7 @@ func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
 		if _, err := pool.Exec(ctx, string(sql)); err != nil {
 			return fmt.Errorf("executing migration %s: %w", file, err)
 		}
-		log.Printf("Migration applied: %s", file)
+		slog.Info("Migration applied", slog.String("file", file))
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,6 +29,7 @@ func (h *HealthHandler) Readiness(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]any{"status": "ok"}
 
 	if err := h.pool.Ping(r.Context()); err != nil {
+		slog.ErrorContext(r.Context(), "health check failed: database unavailable", slog.Any("error", err))
 		resp["status"] = "unavailable"
 		resp["database"] = "unavailable"
 		writeJSON(w, http.StatusServiceUnavailable, resp)

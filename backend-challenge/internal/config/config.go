@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/joho/godotenv"
 )
 
 // Config holds all configuration for the application.
@@ -20,6 +22,9 @@ type Config struct {
 
 // Load reads configuration from environment variables with sensible defaults.
 func Load() *Config {
+	// Load .env file if it exists (best effort for local dev)
+	_ = godotenv.Load()
+
 	return &Config{
 		Port:         getEnvInt("PORT", 8080),
 		MCPPort:      getEnvInt("MCP_PORT", 8081),

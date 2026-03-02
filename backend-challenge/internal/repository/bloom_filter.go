@@ -5,11 +5,12 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/bits-and-blooms/bloom/v3"
 )
@@ -36,9 +37,9 @@ func (b *BloomFilterSet) StartLoading(urls []string, onComplete func(err error))
 	go func() {
 		err := b.loadFromURLs(urls)
 		if err != nil {
-			log.Printf("WARNING: Bloom filter loading failed: %v (promo validation uses DB only)", err)
+			slog.Warn("Bloom filter loading failed", slog.Any("error", err), slog.String("info", "promo validation uses DB only"))
 		} else {
-			log.Printf("Bloom filters ready (%d filters loaded)", len(urls))
+			slog.Info("Bloom filters ready", slog.Int("count", len(urls)))
 		}
 		if onComplete != nil {
 			onComplete(err)
@@ -83,13 +84,13 @@ func (b *BloomFilterSet) loadFromURLs(urls []string) error {
 		if url == "" {
 			continue
 		}
-		log.Printf("Bloom filter [%d/%d]: streaming from %s", i+1, len(urls), url)
+		slog.Info("Bloom filter loading started", slog.Int("index", i+1), slog.Int("total", len(urls)), slog.String("url", url))
 		f, err := buildFilterFromGzipURL(url)
 		if err != nil {
 			return fmt.Errorf("filter %d (%s): %w", i+1, url, err)
 		}
 		filters = append(filters, f)
-		log.Printf("Bloom filter [%d/%d]: loaded", i+1, len(urls))
+		slog.Info("Bloom filter loaded successfully", slog.Int("index", i+1), slog.Int("total", len(urls)))
 	}
 
 	if len(filters) == 0 {
@@ -107,9 +108,28 @@ func (b *BloomFilterSet) loadFromURLs(urls []string) error {
 // decompresses on-the-fly, and adds each line to a bloom filter.
 // Memory: only one buffered line is held at a time (no full-file buffering).
 func buildFilterFromGzipURL(url string) (*bloom.BloomFilter, error) {
-	resp, err := http.Get(url) //nolint:gosec // URLs are from trusted env config
+	client := &http.Client{
+		Timeout: 2 * time.Minute,
+	}
+
+	var resp *http.Response
+	var err error
+
+	// Retry logic for transient network issues (3 attempts).
+	for i := 0; i < 3; i++ {
+		resp, err = client.Get(url) //nolint:gosec // URLs are from trusted env config
+		if err == nil && resp.StatusCode == http.StatusOK {
+			break
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		slog.Warn("Retrying bloom filter download", slog.String("url", url), slog.Int("attempt", i+1), slog.Any("error", err))
+		time.Sleep(time.Duration(i+1) * time.Second)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("HTTP GET: %w", err)
+		return nil, fmt.Errorf("HTTP GET (after retries): %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -147,7 +167,7 @@ func buildFilterFromGzipURL(url string) (*bloom.BloomFilter, error) {
 		}
 	}
 
-	log.Printf("  Indexed %d codes into bloom filter", count)
+	slog.Info("Indexed codes into bloom filter", slog.Int64("count", count))
 	return filter, nil
 }
 

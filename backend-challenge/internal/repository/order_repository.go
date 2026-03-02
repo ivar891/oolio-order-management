@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -34,11 +35,12 @@ func (r *pgOrderRepository) Create(ctx context.Context, req models.OrderRequest,
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	// Collect product IDs for locking.
+	// Collect and sort product IDs for consistent locking order (deadlock prevention).
 	productIDs := make([]string, 0, len(req.Items))
 	for _, item := range req.Items {
 		productIDs = append(productIDs, item.ProductID)
 	}
+	sort.Strings(productIDs)
 
 	// Lock product rows and check stock.
 	rows, err := tx.Query(ctx, `

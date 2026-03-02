@@ -29,6 +29,16 @@ func (m *mockProductRepo) GetByID(_ context.Context, id string) (*models.Product
 	return &p, nil
 }
 
+func (m *mockProductRepo) GetByIDs(_ context.Context, ids []string) ([]models.Product, error) {
+	var result []models.Product
+	for _, id := range ids {
+		if p, ok := m.products[id]; ok {
+			result = append(result, p)
+		}
+	}
+	return result, nil
+}
+
 // mockOrderRepo is a test double for OrderRepository.
 type mockOrderRepo struct {
 	lastOrder *models.OrderResponse

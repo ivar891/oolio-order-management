@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
 
@@ -15,7 +15,10 @@ func Recovery() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if rec := recover(); rec != nil {
-					log.Printf("PANIC: %v\n%s", rec, debug.Stack())
+					slog.ErrorContext(r.Context(), "panic recovered",
+						slog.Any("panic", rec),
+						slog.String("stack", string(debug.Stack())),
+					)
 					handler.WriteErrorPublic(w, models.NewServiceUnavailableError())
 				}
 			}()

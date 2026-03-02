@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -108,6 +108,6 @@ func (s *Server) placeOrderHandler(ctx context.Context, request mcp.CallToolRequ
 // StartSSE starts the MCP server with SSE transport.
 func (s *Server) StartSSE(addr string) error {
 	sseServer := server.NewSSEServer(s.mcpServer)
-	log.Printf("MCP SSE server listening on %s", addr)
+	slog.Info("MCP SSE server listening", slog.String("addr", addr))
 	return http.ListenAndServe(addr, sseServer)
 }

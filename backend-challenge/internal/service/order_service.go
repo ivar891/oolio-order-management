@@ -129,16 +129,42 @@ func mergeItems(items []models.OrderItem) []models.OrderItem {
 	return result
 }
 
-// resolveProducts fetches products for all items and validates they exist.
+// resolveProducts fetches products for all items in bulk and validates they exist.
 func (s *OrderService) resolveProducts(ctx context.Context, items []models.OrderItem) ([]models.Product, error) {
-	products := make([]models.Product, 0, len(items))
-	for _, item := range items {
-		p, err := s.productRepo.GetByID(ctx, item.ProductID)
-		if err != nil {
-			return nil, models.NewConstraintError(fmt.Sprintf("invalid product specified: %s", item.ProductID))
-		}
-		products = append(products, *p)
+	if len(items) == 0 {
+		return nil, nil
 	}
+
+	// 1. Collect unique product IDs.
+	idSet := make(map[string]struct{})
+	for _, item := range items {
+		idSet[item.ProductID] = struct{}{}
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+
+	// 2. Fetch all products in a single bulk query.
+	products, err := s.productRepo.GetByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("resolve products: %w", err)
+	}
+
+	// 3. Verify all products exist.
+	if len(products) != len(ids) {
+		// Figure out which one is missing for a better error message.
+		found := make(map[string]struct{})
+		for _, p := range products {
+			found[p.ID] = struct{}{}
+		}
+		for _, id := range ids {
+			if _, ok := found[id]; !ok {
+				return nil, models.NewConstraintError(fmt.Sprintf("invalid product specified: %s", id))
+			}
+		}
+	}
+
 	return products, nil
 }
 
