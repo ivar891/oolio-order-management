@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -18,7 +19,8 @@ func Auth(apiKey string) func(http.Handler) http.Handler {
 				handler.WriteErrorPublic(w, models.NewUnauthorizedError("API key is required"))
 				return
 			}
-			if key != apiKey {
+			// Use constant-time comparison to prevent timing side-channel attacks.
+			if subtle.ConstantTimeCompare([]byte(key), []byte(apiKey)) != 1 {
 				handler.WriteErrorPublic(w, models.NewForbiddenError("invalid API key"))
 				return
 			}

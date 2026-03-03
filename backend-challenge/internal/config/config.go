@@ -29,7 +29,7 @@ func Load() *Config {
 		Port:         getEnvInt("PORT", 8080),
 		MCPPort:      getEnvInt("MCP_PORT", 8081),
 		APIKey:       getEnv("API_KEY", "apitest"),
-		DatabaseURL:  getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/orderdb?sslmode=disable"),
+		DatabaseURL:  getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/orderdb?sslmode=disable"),
 		OTLPEndpoint: getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
 		ServiceName:  getEnv("OTEL_SERVICE_NAME", "order-food-api"),
 		CouponFileURLs: getEnvList("COUPON_FILE_URLS",

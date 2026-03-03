@@ -3,15 +3,19 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/oolio-group/order-management/internal/config"
 	"github.com/oolio-group/order-management/internal/handler"
@@ -31,8 +35,6 @@ func main() {
 	// Initialize structured logging.
 	appLogger := logger.New(os.Getenv("APP_ENV"), os.Stdout)
 	slog.SetDefault(appLogger)
-	log.SetFlags(0)
-	// logger.SetOutput(io.Discard) // REMOVED: Keep standard logs visible for debugging
 
 	slog.Info("Starting Order Food Online API", slog.Int("port", cfg.Port))
 
@@ -59,7 +61,7 @@ func main() {
 	slog.Info("Connected to PostgreSQL")
 
 	// Run migrations.
-	if err := runMigrations(ctx, pool); err != nil {
+	if err := runMigrations(cfg.DatabaseURL); err != nil {
 		slog.Error("Failed to run migrations", slog.Any("error", err))
 		os.Exit(1)
 	}
@@ -69,7 +71,7 @@ func main() {
 	bloomFilters := repository.NewBloomFilterSet()
 	bloomFilters.StartLoading(cfg.CouponFileURLs, func(err error) {
 		if err != nil {
-			log.Printf("WARNING: Bloom filter loading failed: %v (promo validation uses DB only)", err)
+			slog.Warn("Bloom filter loading failed", slog.Any("error", err), slog.String("info", "promo validation uses DB only"))
 		}
 	})
 
@@ -96,7 +98,6 @@ func main() {
 
 	// Product endpoints (no auth).
 	mux.HandleFunc("GET /api/product", productHandler.ListProducts)
-	// mux.HandleFunc("GET /api/products", productHandler.ListProducts)
 	mux.HandleFunc("GET /api/product/{productId}", productHandler.GetProduct)
 
 	// Order endpoints (auth required).
@@ -117,11 +118,11 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-	// Start HTTP server.
 	go func() {
-		log.Printf("HTTP server listening on :%d", cfg.Port)
+		slog.Info("HTTP server listening", slog.Int("port", cfg.Port))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("HTTP server error: %v", err)
+			slog.Error("HTTP server error", slog.Any("error", err))
+			os.Exit(1)
 		}
 	}()
 
@@ -129,7 +130,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("Shutting down...")
+	slog.Info("Shutting down...")
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -140,22 +141,24 @@ func main() {
 	slog.Info("Server stopped")
 }
 
-// runMigrations executes SQL migration files.
-func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	files := []string{
-		"migrations/001_create_schema.up.sql",
-		"migrations/002_seed_products.up.sql",
+// runMigrations applies database migrations using golang-migrate.
+// It provides version tracking, dirty state detection, advisory locking,
+// and rollback support via .down.sql files.
+func runMigrations(databaseURL string) error {
+	// golang-migrate's pgx5 driver expects the "pgx5://" scheme.
+	migrateURL := strings.Replace(databaseURL, "postgres://", "pgx5://", 1)
+
+	m, err := migrate.New("file://migrations", migrateURL)
+	if err != nil {
+		return fmt.Errorf("creating migrator: %w", err)
+	}
+	defer m.Close()
+
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("running migrations: %w", err)
 	}
 
-	for _, file := range files {
-		sql, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("reading migration %s: %w", file, err)
-		}
-		if _, err := pool.Exec(ctx, string(sql)); err != nil {
-			return fmt.Errorf("executing migration %s: %w", file, err)
-		}
-		slog.Info("Migration applied", slog.String("file", file))
-	}
+	version, dirty, _ := m.Version()
+	slog.Info("Migrations up to date", slog.Uint64("version", uint64(version)), slog.Bool("dirty", dirty))
 	return nil
 }
