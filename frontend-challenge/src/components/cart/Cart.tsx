@@ -14,7 +14,8 @@ import {
     DialogTitle,
     DialogContent,
     DialogContentText,
-    DialogActions
+    DialogActions,
+    CircularProgress
 } from '@mui/material';
 import { XCircle, BadgeCheck, UtensilsCrossed } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
@@ -22,9 +23,10 @@ import { useCartStore } from '@/store/useCartStore';
 interface CartProps {
     onConfirm: (couponCode: string) => void;
     promoError?: string | null;
+    isPending?: boolean;
 }
 
-export default function Cart({ onConfirm, promoError }: CartProps) {
+export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
     const { items, removeItem, getSubtotal, getTotalItems } = useCartStore();
     const [couponCode, setCouponCode] = React.useState('');
     const [deleteItemId, setDeleteItemId] = React.useState<string | null>(null);
@@ -149,9 +151,10 @@ export default function Cart({ onConfirm, promoError }: CartProps) {
                 variant="contained"
                 size="large"
                 onClick={() => onConfirm(couponCode)}
+                disabled={isPending}
                 sx={{ py: 2, fontSize: '18px' }}
             >
-                Confirm Order
+                {isPending ? <CircularProgress size={24} color="inherit" /> : 'Confirm Order'}
             </Button>
 
             {/* Deletion Confirmation Dialog */}

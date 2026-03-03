@@ -10,6 +10,7 @@ interface CartState {
     clearCart: () => void;
     getTotalItems: () => number;
     getSubtotal: () => number;
+    syncPrices: (currentProducts: Product[]) => string[];
 }
 
 export const useCartStore = create<CartState>()(
@@ -64,6 +65,41 @@ export const useCartStore = create<CartState>()(
                     (total, item) => total + item.product.price * item.quantity,
                     0
                 );
+            },
+
+            syncPrices: (currentProducts: Product[]) => {
+                let warnings: string[] = [];
+                set((state) => {
+                    let hasChanges = false;
+                    const newItems = state.items.map((item) => {
+                        const currentProduct = currentProducts.find(p => p.id === item.productId);
+
+                        // Item was deleted or went out of stock
+                        if (!currentProduct) {
+                            hasChanges = true;
+                            warnings.push(`${item.product.name} is no longer available and was removed from your cart.`);
+                            return null;
+                        }
+
+                        // Price increased
+                        if (currentProduct.price > item.product.price) {
+                            hasChanges = true;
+                            warnings.push(`The price of ${currentProduct.name} has increased to $${currentProduct.price.toFixed(2)}.`);
+                            return { ...item, product: currentProduct };
+                        }
+
+                        // Price decreased or other silent product update
+                        if (currentProduct.price !== item.product.price || currentProduct.name !== item.product.name) {
+                            hasChanges = true;
+                            return { ...item, product: currentProduct };
+                        }
+
+                        return item;
+                    }).filter(Boolean) as CartItem[]; // Remove nulls (deleted items)
+
+                    return hasChanges ? { items: newItems } : state;
+                });
+                return warnings;
             },
         }),
         {

@@ -19,17 +19,28 @@ import { useCartStore } from '@/store/useCartStore';
 import { OrderResponse } from '@/types';
 
 export default function Home() {
-  const { items, clearCart } = useCartStore();
+  const { items, clearCart, syncPrices } = useCartStore();
   const [orderConfirm, setOrderConfirm] = React.useState<OrderResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [promoError, setPromoError] = React.useState<string | null>(null);
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
+  const [syncWarnings, setSyncWarnings] = React.useState<string[]>([]);
 
   // 1. Fetch products
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['products'],
     queryFn: getProducts,
   });
+
+  // Sync cart prices with fresh server prices silently
+  React.useEffect(() => {
+    if (products?.length) {
+      const msgs = syncPrices(products);
+      if (msgs.length > 0) {
+        setSyncWarnings(msgs);
+      }
+    }
+  }, [products, syncPrices]);
 
   // 2. Order mutation
   const orderMutation = useMutation({
@@ -41,6 +52,7 @@ export default function Home() {
     },
     onSuccess: (data) => {
       setOrderConfirm(data);
+      clearCart(); // Immediately empty cart when order is placed successfully
       if (data.couponCode) {
         setSuccessMsg(`Promo code ${data.couponCode} applied successfully!`);
       }
@@ -67,7 +79,6 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    clearCart();
     setOrderConfirm(null);
   };
 
@@ -108,7 +119,11 @@ export default function Home() {
           {/* Cart Sidebar */}
           <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ position: { md: 'sticky' }, top: 32 }}>
-              <Cart onConfirm={handleConfirmOrder} promoError={promoError} />
+              <Cart
+                onConfirm={handleConfirmOrder}
+                promoError={promoError}
+                isPending={orderMutation.isPending}
+              />
             </Box>
           </Grid>
         </Grid>
@@ -139,6 +154,21 @@ export default function Home() {
         >
           <Alert onClose={() => setSuccessMsg(null)} severity="success" sx={{ width: '100%' }}>
             {successMsg}
+          </Alert>
+        </Snackbar>
+
+        {/* Sync Warnings Snackbar (Price updates, OOS items) */}
+        <Snackbar
+          open={syncWarnings.length > 0}
+          onClose={() => setSyncWarnings([])}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        >
+          <Alert onClose={() => setSyncWarnings([])} severity="warning" sx={{ width: '100%' }}>
+            {syncWarnings.map((msg, idx) => (
+              <Box key={idx} sx={{ display: 'block', mb: syncWarnings.length > 1 ? 0.5 : 0 }}>
+                • {msg}
+              </Box>
+            ))}
           </Alert>
         </Snackbar>
       </Container>
