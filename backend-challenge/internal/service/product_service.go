@@ -20,7 +20,7 @@ func NewProductService(repo repository.ProductRepository) *ProductService {
 }
 
 // ListProducts returns all available products.
-func (s *ProductService) ListProducts(ctx context.Context) ([]models.Product, error) {
+func (s *ProductService) ListProducts(ctx context.Context) ([]*models.Product, error) {
 	return s.repo.List(ctx)
 }
 

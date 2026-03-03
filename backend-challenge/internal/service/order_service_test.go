@@ -13,10 +13,11 @@ type mockProductRepo struct {
 	products map[string]models.Product
 }
 
-func (m *mockProductRepo) List(_ context.Context) ([]models.Product, error) {
-	result := make([]models.Product, 0, len(m.products))
+func (m *mockProductRepo) List(_ context.Context) ([]*models.Product, error) {
+	result := make([]*models.Product, 0, len(m.products))
 	for _, p := range m.products {
-		result = append(result, p)
+		pCopy := p
+		result = append(result, &pCopy)
 	}
 	return result, nil
 }
@@ -29,11 +30,12 @@ func (m *mockProductRepo) GetByID(_ context.Context, id string) (*models.Product
 	return &p, nil
 }
 
-func (m *mockProductRepo) GetByIDs(_ context.Context, ids []string) ([]models.Product, error) {
-	var result []models.Product
+func (m *mockProductRepo) GetByIDs(_ context.Context, ids []string) ([]*models.Product, error) {
+	var result []*models.Product
 	for _, id := range ids {
 		if p, ok := m.products[id]; ok {
-			result = append(result, p)
+			pCopy := p
+			result = append(result, &pCopy)
 		}
 	}
 	return result, nil
@@ -44,7 +46,7 @@ type mockOrderRepo struct {
 	lastOrder *models.OrderResponse
 }
 
-func (m *mockOrderRepo) Create(_ context.Context, req models.OrderRequest, products []models.Product, total, discounts float64) (*models.OrderResponse, error) {
+func (m *mockOrderRepo) Create(_ context.Context, req models.OrderRequest, products []*models.Product, total, discounts float64) (*models.OrderResponse, error) {
 	currency := "USD"
 	if len(products) > 0 {
 		currency = products[0].Currency

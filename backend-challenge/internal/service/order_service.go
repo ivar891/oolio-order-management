@@ -3,11 +3,17 @@ package service
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+
+	"go.opentelemetry.io/otel"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/oolio-group/order-management/internal/models"
 	"github.com/oolio-group/order-management/internal/repository"
 )
+
+var tracer = otel.Tracer("order-service")
 
 // OrderService provides order-related business operations.
 type OrderService struct {
@@ -31,17 +37,61 @@ func NewOrderService(
 
 // PlaceOrder validates and creates an order.
 func (s *OrderService) PlaceOrder(ctx context.Context, req models.OrderRequest) (*models.OrderResponse, error) {
+	ctx, span := tracer.Start(ctx, "PlaceOrder")
+	defer span.End()
+
+	slog.InfoContext(ctx, "Placing new order", slog.Int("item_count", len(req.Items)))
+
 	// 1. Validate items.
 	if err := s.validateItems(req.Items); err != nil {
+		slog.WarnContext(ctx, "Invalid order items", slog.Any("error", err))
 		return nil, err
 	}
 
 	// 2. Merge duplicate product IDs.
 	req.Items = mergeItems(req.Items)
 
-	// 3. Resolve products and validate they exist.
-	products, err := s.resolveProducts(ctx, req.Items)
-	if err != nil {
+	// 3. Resolve products and validate promo code in parallel.
+	var products []*models.Product
+	var validation *repository.PromoValidation
+	var discounts float64
+
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// Task A: Resolve products.
+	g.Go(func() error {
+		_, innerSpan := tracer.Start(gCtx, "ResolveProducts")
+		defer innerSpan.End()
+		var err error
+		products, err = s.resolveProducts(gCtx, req.Items)
+		return err
+	})
+
+	// Task B: Validate promo code (if provided).
+	if req.CouponCode != "" {
+		couponCode := strings.TrimSpace(req.CouponCode)
+		req.CouponCode = couponCode
+
+		// Validate promo code length.
+		if len(couponCode) < 3 || len(couponCode) > 20 {
+			return nil, models.NewValidationError(fmt.Sprintf("invalid coupon code: %s", couponCode))
+		}
+
+		g.Go(func() error {
+			_, innerSpan := tracer.Start(gCtx, "ValidatePromo")
+			defer innerSpan.End()
+			var err error
+			validation, err = s.promoRepo.Validate(gCtx, couponCode)
+			if err != nil {
+				return fmt.Errorf("validate promo code: %w", err)
+			}
+			return nil
+		})
+	}
+
+	// Wait for both tasks to complete.
+	if err := g.Wait(); err != nil {
+		slog.ErrorContext(ctx, "Parallel validation failed", slog.Any("error", err))
 		return nil, err
 	}
 
@@ -49,33 +99,30 @@ func (s *OrderService) PlaceOrder(ctx context.Context, req models.OrderRequest) 
 	itemsWithPrices := buildItemsWithPrices(req.Items, products)
 	total := calculateTotal(itemsWithPrices)
 
-	// 5. Validate and apply promo code.
-	var discounts float64
-	if req.CouponCode != "" {
-		couponCode := strings.TrimSpace(req.CouponCode)
-		req.CouponCode = couponCode
-
-		// Validate promo code length.
-		if len(couponCode) < 8 || len(couponCode) > 10 {
-			return nil, models.NewValidationError("invalid coupon code")
-		}
-
-		// Validate via bloom filter + DB (returns discount percentage).
-		validation, err := s.promoRepo.Validate(ctx, couponCode)
-		if err != nil {
-			return nil, fmt.Errorf("validate promo code: %w", err)
-		}
-		if !validation.Valid {
-			return nil, models.NewValidationError("invalid coupon code")
-		}
-
+	// 5. Apply promo code results.
+	if validation != nil && validation.Valid {
+		couponCode := req.CouponCode
 		// Apply discount: use DB-stored discount percentage if > 0,
 		// otherwise fall back to known strategy patterns.
 		if validation.DiscountPercentage > 0 {
 			discounts = roundToTwoDecimals(total * validation.DiscountPercentage / 100)
 		} else if strategy := GetDiscountStrategy(couponCode); strategy != nil {
+			if couponCode == "BUYGETONE" {
+				var totalQty int
+				for _, item := range req.Items {
+					totalQty += item.Quantity
+				}
+				if totalQty < 2 {
+					return nil, models.NewValidationError("BUYGETONE requires at least 2 items")
+				}
+			}
 			discounts = strategy.Calculate(itemsWithPrices)
 		}
+		slog.InfoContext(ctx, "Promo code applied", slog.String("coupon", couponCode), slog.Float64("discount", discounts))
+	} else if req.CouponCode != "" {
+		// If a code was provided but validation came back invalid.
+		slog.WarnContext(ctx, "Invalid coupon code", slog.String("coupon", req.CouponCode))
+		return nil, models.NewValidationError(fmt.Sprintf("invalid coupon code: %s", req.CouponCode))
 	}
 
 	finalTotal := roundToTwoDecimals(total - discounts)
@@ -86,9 +133,11 @@ func (s *OrderService) PlaceOrder(ctx context.Context, req models.OrderRequest) 
 	// 6. Persist order with stock check (atomic).
 	resp, err := s.orderRepo.Create(ctx, req, products, finalTotal, discounts)
 	if err != nil {
+		slog.ErrorContext(ctx, "Failed to create order", slog.Any("error", err))
 		return nil, err
 	}
 
+	slog.InfoContext(ctx, "Order placed successfully", slog.String("order_id", resp.ID))
 	return resp, nil
 }
 
@@ -130,7 +179,7 @@ func mergeItems(items []models.OrderItem) []models.OrderItem {
 }
 
 // resolveProducts fetches products for all items in bulk and validates they exist.
-func (s *OrderService) resolveProducts(ctx context.Context, items []models.OrderItem) ([]models.Product, error) {
+func (s *OrderService) resolveProducts(ctx context.Context, items []models.OrderItem) ([]*models.Product, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -168,7 +217,7 @@ func (s *OrderService) resolveProducts(ctx context.Context, items []models.Order
 	return products, nil
 }
 
-func buildItemsWithPrices(items []models.OrderItem, products []models.Product) []itemWithPrice {
+func buildItemsWithPrices(items []models.OrderItem, products []*models.Product) []itemWithPrice {
 	priceMap := make(map[string]float64)
 	for _, p := range products {
 		priceMap[p.ID] = p.Price

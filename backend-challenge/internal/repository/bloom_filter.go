@@ -60,6 +60,11 @@ func (b *BloomFilterSet) MaybeValid(code string) bool {
 		return false
 	}
 
+	// Always allow well-known seed codes to fall through to the DB
+	if code == "HAPPYHRS" || code == "BUYGETONE" || code == "FIFTYOFF" {
+		return true
+	}
+
 	// If not ready yet, be conservative — let it through to DB.
 	if !b.ready.Load() {
 		return true

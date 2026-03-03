@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql
     healthcheck:
@@ -16,29 +16,29 @@ services:
       timeout: 3s
       retries: 5
 
-  app:
-    build: .
-    container_name: order-api
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      PORT: "8080"
-      MCP_PORT: "8081"
-      API_KEY: "apitest"
-      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/orderdb?sslmode=disable"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
-      OTEL_SERVICE_NAME: "order-food-api"
-      COUPON_FILE_URLS: "https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase1.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase2.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase3.gz"
-    ports:
-      - "8080:8080"
-      - "8081:8081"
-    healthcheck:
-      test: ["CMD", "/server", "--help"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+  # app:
+  #   build: .
+  #   container_name: order-api
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     PORT: "8080"
+  #     MCP_PORT: "8081"
+  #     API_KEY: "apitest"
+  #     DATABASE_URL: "postgres://postgres:postgres@postgres:5432/orderdb?sslmode=disable"
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+  #     OTEL_SERVICE_NAME: "order-food-api"
+  #     COUPON_FILE_URLS: "https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase1.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase2.gz,https://orderfoodonline-files.s3.ap-southeast-2.amazonaws.com/couponbase3.gz"
+  #   ports:
+  #     - "8080:8080"
+  #     - "8081:8081"
+  #   healthcheck:
+  #     test: ["CMD", "/server", "--help"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 3
+  #     start_period: 5s
 
   jaeger:
     image: jaegertracing/jaeger:latest

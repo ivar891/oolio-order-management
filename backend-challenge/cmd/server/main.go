@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"github.com/oolio-group/order-management/internal/config"
 	"github.com/oolio-group/order-management/internal/handler"
 	"github.com/oolio-group/order-management/internal/logger"
-	mcpserver "github.com/oolio-group/order-management/internal/mcp"
 	"github.com/oolio-group/order-management/internal/middleware"
 	"github.com/oolio-group/order-management/internal/repository"
 	"github.com/oolio-group/order-management/internal/service"
@@ -34,7 +32,7 @@ func main() {
 	appLogger := logger.New(os.Getenv("APP_ENV"), os.Stdout)
 	slog.SetDefault(appLogger)
 	log.SetFlags(0)
-	log.SetOutput(io.Discard) // Redirect standard log to slog (implicitly via SetDefault)
+	// logger.SetOutput(io.Discard) // REMOVED: Keep standard logs visible for debugging
 
 	slog.Info("Starting Order Food Online API", slog.Int("port", cfg.Port))
 
@@ -49,12 +47,14 @@ func main() {
 	// Connect to PostgreSQL.
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", slog.Any("error", err), slog.String("hint", "Ensure Docker is running and the database container is started (make docker-up)"))
+		os.Exit(1)
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		slog.Error("Failed to ping database", slog.Any("error", err))
+		os.Exit(1)
 	}
 	slog.Info("Connected to PostgreSQL")
 
@@ -117,15 +117,6 @@ func main() {
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
-
-	// Start MCP server in background.
-	mcpSrv := mcpserver.NewServer(productSvc, orderSvc)
-	go func() {
-		if err := mcpSrv.StartSSE(fmt.Sprintf(":%d", cfg.MCPPort)); err != nil {
-			log.Printf("MCP server error: %v", err)
-		}
-	}()
-
 	// Start HTTP server.
 	go func() {
 		log.Printf("HTTP server listening on :%d", cfg.Port)

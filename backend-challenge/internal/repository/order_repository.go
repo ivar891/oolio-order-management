@@ -15,7 +15,7 @@ import (
 type OrderRepository interface {
 	// Create atomically creates an order, checking and decrementing stock.
 	// Returns InsufficientStockError if any product lacks sufficient stock.
-	Create(ctx context.Context, req models.OrderRequest, products []models.Product, total, discounts float64) (*models.OrderResponse, error)
+	Create(ctx context.Context, req models.OrderRequest, products []*models.Product, total, discounts float64) (*models.OrderResponse, error)
 }
 
 type pgOrderRepository struct {
@@ -28,7 +28,7 @@ func NewOrderRepository(pool *pgxpool.Pool) OrderRepository {
 }
 
 // Create places an order atomically with stock checking via SELECT FOR UPDATE.
-func (r *pgOrderRepository) Create(ctx context.Context, req models.OrderRequest, products []models.Product, total, discounts float64) (*models.OrderResponse, error) {
+func (r *pgOrderRepository) Create(ctx context.Context, req models.OrderRequest, products []*models.Product, total, discounts float64) (*models.OrderResponse, error) {
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)

@@ -16,7 +16,7 @@ type OrderItem struct {
 type OrderResponse struct {
 	ID         string      `json:"id"`
 	Items      []OrderItem `json:"items"`
-	Products   []Product   `json:"products"`
+	Products   []*Product  `json:"products"`
 	CouponCode string      `json:"couponCode,omitempty"`
 	Currency   string      `json:"currency"`
 	Total      float64     `json:"total"`

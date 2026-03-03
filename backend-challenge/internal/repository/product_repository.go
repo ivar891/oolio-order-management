@@ -10,9 +10,9 @@ import (
 
 // ProductRepository defines data access operations for products.
 type ProductRepository interface {
-	List(ctx context.Context) ([]models.Product, error)
+	List(ctx context.Context) ([]*models.Product, error)
 	GetByID(ctx context.Context, id string) (*models.Product, error)
-	GetByIDs(ctx context.Context, ids []string) ([]models.Product, error)
+	GetByIDs(ctx context.Context, ids []string) ([]*models.Product, error)
 }
 
 type pgProductRepository struct {
@@ -25,7 +25,7 @@ func NewProductRepository(pool *pgxpool.Pool) ProductRepository {
 }
 
 // List returns all products.
-func (r *pgProductRepository) List(ctx context.Context) ([]models.Product, error) {
+func (r *pgProductRepository) List(ctx context.Context) ([]*models.Product, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, name, price, currency, category, stock_quantity,
 		       image_thumb, image_mobile, image_tablet, image_desktop
@@ -37,7 +37,7 @@ func (r *pgProductRepository) List(ctx context.Context) ([]models.Product, error
 	}
 	defer rows.Close()
 
-	var products []models.Product
+	var products []*models.Product
 	for rows.Next() {
 		p, err := scanProduct(rows)
 		if err != nil {
@@ -84,7 +84,7 @@ func (r *pgProductRepository) GetByID(ctx context.Context, id string) (*models.P
 }
 
 // GetByIDs returns multiple products by their identifier.
-func (r *pgProductRepository) GetByIDs(ctx context.Context, ids []string) ([]models.Product, error) {
+func (r *pgProductRepository) GetByIDs(ctx context.Context, ids []string) ([]*models.Product, error) {
 	rows, err := r.pool.Query(ctx, `
 		SELECT id, name, price, currency, category, stock_quantity,
 		       image_thumb, image_mobile, image_tablet, image_desktop
@@ -96,7 +96,7 @@ func (r *pgProductRepository) GetByIDs(ctx context.Context, ids []string) ([]mod
 	}
 	defer rows.Close()
 
-	var products []models.Product
+	var products []*models.Product
 	for rows.Next() {
 		p, err := scanProduct(rows)
 		if err != nil {
@@ -112,13 +112,13 @@ type scannable interface {
 	Scan(dest ...any) error
 }
 
-func scanProduct(s scannable) (models.Product, error) {
+func scanProduct(s scannable) (*models.Product, error) {
 	var p models.Product
 	var thumb, mobile, tablet, desktop *string
 	err := s.Scan(&p.ID, &p.Name, &p.Price, &p.Currency, &p.Category, &p.StockQuantity,
 		&thumb, &mobile, &tablet, &desktop)
 	if err != nil {
-		return p, err
+		return nil, err
 	}
 
 	if thumb != nil || mobile != nil || tablet != nil || desktop != nil {
@@ -136,5 +136,5 @@ func scanProduct(s scannable) (models.Product, error) {
 			p.Image.Desktop = *desktop
 		}
 	}
-	return p, nil
+	return &p, nil
 }
