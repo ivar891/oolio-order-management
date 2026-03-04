@@ -18,27 +18,36 @@ import {
     CircularProgress
 } from '@mui/material';
 import { XCircle, BadgeCheck, UtensilsCrossed } from 'lucide-react';
-import { useCartStore } from '@/store/useCartStore';
+import { useCartStore, selectTotalItems, selectSubtotal } from '@/store/useCartStore';
 
 interface CartProps {
     onConfirm: (couponCode: string) => void;
     promoError?: string | null;
+    onPromoErrorClear?: () => void;
     isPending?: boolean;
 }
 
-export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
-    const { items, removeItem, getSubtotal, getTotalItems } = useCartStore();
+export default function Cart({ onConfirm, promoError, onPromoErrorClear, isPending }: CartProps) {
+    const items = useCartStore((state) => state.items);
+    const removeItem = useCartStore((state) => state.removeItem);
+    const totalItems = useCartStore(selectTotalItems);
+    const subtotal = useCartStore(selectSubtotal);
+
     const [couponCode, setCouponCode] = React.useState('');
     const [deleteItemId, setDeleteItemId] = React.useState<string | null>(null);
-
-    const subtotal = getSubtotal();
-    const totalItems = getTotalItems();
 
     React.useEffect(() => {
         if (totalItems === 0) {
             setCouponCode('');
         }
     }, [totalItems]);
+
+    const handleCouponChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setCouponCode(e.target.value);
+        if (promoError && onPromoErrorClear) {
+            onPromoErrorClear();
+        }
+    };
 
     const handleDeleteClick = (productId: string) => {
         setDeleteItemId(productId);
@@ -62,7 +71,7 @@ export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
                     Your Cart ({totalItems})
                 </Typography>
                 <Stack alignItems="center" spacing={2} sx={{ py: 4 }}>
-                    <UtensilsCrossed size={120} color="#AD8982" strokeWidth={1} />
+                    <UtensilsCrossed size={120} color="currentColor" strokeWidth={1} />
                     <Typography color="text.secondary" fontWeight={600}>
                         Your added items will appear here
                     </Typography>
@@ -97,11 +106,16 @@ export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
                                     </Typography>
                                 </Stack>
                             </Box>
-                            <IconButton size="small" onClick={() => handleDeleteClick(item.productId)} sx={{ color: '#AD8982' }}>
+                            <IconButton
+                                size="small"
+                                onClick={() => handleDeleteClick(item.productId)}
+                                aria-label={`Remove ${item.product.name} from cart`}
+                                sx={{ color: 'muted.main' }}
+                            >
                                 <XCircle size={20} />
                             </IconButton>
                         </Stack>
-                        <Divider sx={{ mt: 2, borderColor: '#F5F5F5' }} />
+                        <Divider sx={{ mt: 2, borderColor: 'surface.main' }} />
                     </Box>
                 ))}
             </Stack>
@@ -121,11 +135,11 @@ export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
                     value={couponCode}
                     error={!!promoError}
                     helperText={promoError}
-                    onChange={(e) => setCouponCode(e.target.value)}
+                    onChange={handleCouponChange}
                     sx={{
                         '& .MuiOutlinedInput-root': {
                             borderRadius: 2,
-                            bgcolor: promoError ? '#FFF5F5' : '#F5F5F5',
+                            bgcolor: promoError ? 'surface.light' : 'surface.main',
                             '& fieldset': { borderColor: promoError ? 'error.main' : 'transparent' },
                             '&:hover fieldset': { borderColor: promoError ? 'error.main' : 'primary.main' },
                         },
@@ -137,9 +151,9 @@ export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
                 />
             </Box>
 
-            <Box sx={{ bgcolor: '#F5F5F5', p: 2, borderRadius: 2, mb: 3 }}>
+            <Box sx={{ bgcolor: 'surface.main', p: 2, borderRadius: 2, mb: 3 }}>
                 <Stack direction="row" spacing={1} alignItems="center">
-                    <BadgeCheck size={20} color="#1EA94C" />
+                    <BadgeCheck size={20} color="currentColor" />
                     <Typography variant="body2">
                         This is a <strong>carbon-neutral</strong> delivery
                     </Typography>
@@ -168,7 +182,7 @@ export default function Cart({ onConfirm, promoError, isPending }: CartProps) {
                 <DialogTitle sx={{ fontWeight: 700 }}>Remove Item?</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Are you sure you want to remove this item from your cart? This action cannot be undone.
+                        Are you sure you want to remove this item from your cart?
                     </DialogContentText>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>

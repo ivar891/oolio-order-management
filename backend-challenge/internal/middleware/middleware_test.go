@@ -70,14 +70,15 @@ func TestCORS(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNoContent {
 		t.Errorf("expected 204 for OPTIONS, got %d", w.Code)
 	}
-	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "*" {
-		t.Errorf("expected *, got %s", origin)
+	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "http://localhost:3000" {
+		t.Errorf("expected http://localhost:3000, got %s", origin)
 	}
 }
 

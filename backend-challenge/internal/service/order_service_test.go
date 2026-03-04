@@ -41,6 +41,22 @@ func (m *mockProductRepo) GetByIDs(_ context.Context, ids []string) ([]*models.P
 	return result, nil
 }
 
+func (m *mockProductRepo) ListPaginated(_ context.Context, limit, offset int) ([]*models.Product, int, error) {
+	all, err := m.List(context.Background())
+	if err != nil {
+		return nil, 0, err
+	}
+	total := len(all)
+	if offset >= total {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return all[offset:end], total, nil
+}
+
 // mockOrderRepo is a test double for OrderRepository.
 type mockOrderRepo struct {
 	lastOrder *models.OrderResponse

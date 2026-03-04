@@ -1,14 +1,28 @@
 import { createTheme } from '@mui/material/styles';
 
+declare module '@mui/material/styles' {
+    interface Palette {
+        muted: Palette['primary'];
+        surface: { main: string; light: string };
+    }
+    interface PaletteOptions {
+        muted?: PaletteOptions['primary'];
+        surface?: { main: string; light: string };
+    }
+}
+
 export const getTheme = (fontFamily: string) =>
     createTheme({
         palette: {
             primary: {
-                main: '#C73B0F', // Rose 600 from design (approx)
+                main: '#C73B0F',
                 contrastText: '#FFFFFF',
             },
             secondary: {
-                main: '#261108', // Rose 900
+                main: '#261108',
+            },
+            success: {
+                main: '#1EA94C',
             },
             background: {
                 default: '#F5F5F5',
@@ -17,6 +31,16 @@ export const getTheme = (fontFamily: string) =>
             text: {
                 primary: '#261108',
                 secondary: '#87635A',
+            },
+            muted: {
+                main: '#AD8982',
+                light: '#C9ADA7',
+                dark: '#87635A',
+                contrastText: '#FFFFFF',
+            },
+            surface: {
+                main: '#F5F5F5',
+                light: '#FFF5F5',
             },
         },
         typography: {

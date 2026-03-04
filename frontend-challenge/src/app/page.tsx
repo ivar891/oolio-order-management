@@ -11,28 +11,93 @@ import {
   Grid
 } from '@mui/material';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { getProducts, placeOrder } from '@/services/api';
 import ProductCard from '@/components/products/ProductCard';
 import Cart from '@/components/cart/Cart';
 import OrderModal from '@/components/cart/OrderModal';
 import { useCartStore } from '@/store/useCartStore';
-import { OrderResponse } from '@/types';
+import { Product, OrderResponse } from '@/types';
+
+interface APIErrorResponse {
+  code: string;
+  message: string;
+}
+
+function ProductGrid({ products }: { products: Product[] }) {
+  return (
+    <Grid container spacing={3}>
+      {products.map((product) => (
+        <Grid key={product.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+          <ProductCard product={product} />
+        </Grid>
+      ))}
+    </Grid>
+  );
+}
+
+function Notifications({
+  errorMsg,
+  successMsg,
+  syncWarnings,
+  onClearError,
+  onClearSuccess,
+  onClearWarnings,
+}: {
+  errorMsg: string | null;
+  successMsg: string | null;
+  syncWarnings: string[];
+  onClearError: () => void;
+  onClearSuccess: () => void;
+  onClearWarnings: () => void;
+}) {
+  return (
+    <>
+      <Snackbar open={!!errorMsg} autoHideDuration={6000} onClose={onClearError}>
+        <Alert onClose={onClearError} severity="error" sx={{ width: '100%' }}>
+          {errorMsg}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar open={!!successMsg} autoHideDuration={6000} onClose={onClearSuccess}>
+        <Alert onClose={onClearSuccess} severity="success" sx={{ width: '100%' }}>
+          {successMsg}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={syncWarnings.length > 0}
+        onClose={onClearWarnings}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+      >
+        <Alert onClose={onClearWarnings} severity="warning" sx={{ width: '100%' }}>
+          {syncWarnings.map((msg, idx) => (
+            <Box key={idx} sx={{ display: 'block', mb: syncWarnings.length > 1 ? 0.5 : 0 }}>
+              {msg}
+            </Box>
+          ))}
+        </Alert>
+      </Snackbar>
+    </>
+  );
+}
 
 export default function Home() {
-  const { items, clearCart, syncPrices } = useCartStore();
+  const items = useCartStore((state) => state.items);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const syncPrices = useCartStore((state) => state.syncPrices);
+
   const [orderConfirm, setOrderConfirm] = React.useState<OrderResponse | null>(null);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [promoError, setPromoError] = React.useState<string | null>(null);
   const [successMsg, setSuccessMsg] = React.useState<string | null>(null);
   const [syncWarnings, setSyncWarnings] = React.useState<string[]>([]);
 
-  // 1. Fetch products
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['products'],
     queryFn: getProducts,
   });
 
-  // Sync cart prices with fresh server prices silently
   React.useEffect(() => {
     if (products?.length) {
       const msgs = syncPrices(products);
@@ -42,7 +107,6 @@ export default function Home() {
     }
   }, [products, syncPrices]);
 
-  // 2. Order mutation
   const orderMutation = useMutation({
     mutationFn: placeOrder,
     onMutate: () => {
@@ -52,14 +116,16 @@ export default function Home() {
     },
     onSuccess: (data) => {
       setOrderConfirm(data);
-      clearCart(); // Immediately empty cart when order is placed successfully
+      clearCart();
       if (data.couponCode) {
         setSuccessMsg(`Promo code ${data.couponCode} applied successfully!`);
       }
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to place order';
-      if (msg.toLowerCase().includes('coupon code')) {
+    onError: (err: AxiosError<APIErrorResponse>) => {
+      const apiError = err.response?.data;
+      const msg = apiError?.message || err.message || 'Failed to place order';
+
+      if (apiError?.code === 'validation' || apiError?.code === 'bad_request') {
         setPromoError(msg);
       }
       setErrorMsg(msg);
@@ -73,13 +139,9 @@ export default function Home() {
     }));
 
     orderMutation.mutate({
-      couponCode,
+      couponCode: couponCode.trim() || undefined,
       items: orderItems
     });
-  };
-
-  const handleReset = () => {
-    setOrderConfirm(null);
   };
 
   if (isLoading) {
@@ -93,7 +155,9 @@ export default function Home() {
   if (error) {
     return (
       <Container maxWidth="lg" sx={{ py: 8 }}>
-        <Alert severity="error">Error loading products. Please ensure the backend is running at http://localhost:8080</Alert>
+        <Alert severity="error">
+          Unable to load products. Please check your connection and try again.
+        </Alert>
       </Container>
     );
   }
@@ -102,75 +166,39 @@ export default function Home() {
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh', py: { xs: 4, md: 8 } }}>
       <Container maxWidth="lg">
         <Grid container spacing={4}>
-          {/* Product List */}
           <Grid size={{ xs: 12, md: 8 }}>
             <Typography variant="h1" sx={{ mb: 4 }}>
               Desserts
             </Typography>
-            <Grid container spacing={3}>
-              {products?.map((product) => (
-                <Grid key={product.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-                  <ProductCard product={product} />
-                </Grid>
-              ))}
-            </Grid>
+            {products && <ProductGrid products={products} />}
           </Grid>
 
-          {/* Cart Sidebar */}
           <Grid size={{ xs: 12, md: 4 }}>
             <Box sx={{ position: { md: 'sticky' }, top: 32 }}>
               <Cart
                 onConfirm={handleConfirmOrder}
                 promoError={promoError}
+                onPromoErrorClear={() => setPromoError(null)}
                 isPending={orderMutation.isPending}
               />
             </Box>
           </Grid>
         </Grid>
 
-        {/* Confirmation Modal */}
         <OrderModal
           open={!!orderConfirm}
           order={orderConfirm}
-          onReset={handleReset}
+          onReset={() => setOrderConfirm(null)}
         />
 
-        {/* Error Snackbar */}
-        <Snackbar
-          open={!!errorMsg}
-          autoHideDuration={6000}
-          onClose={() => setErrorMsg(null)}
-        >
-          <Alert onClose={() => setErrorMsg(null)} severity="error" sx={{ width: '100%' }}>
-            {errorMsg}
-          </Alert>
-        </Snackbar>
-
-        {/* Success Snackbar */}
-        <Snackbar
-          open={!!successMsg}
-          autoHideDuration={6000}
-          onClose={() => setSuccessMsg(null)}
-        >
-          <Alert onClose={() => setSuccessMsg(null)} severity="success" sx={{ width: '100%' }}>
-            {successMsg}
-          </Alert>
-        </Snackbar>
-
-        {/* Sync Warnings Snackbar (Price updates, OOS items) */}
-        <Snackbar
-          open={syncWarnings.length > 0}
-          onClose={() => setSyncWarnings([])}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        >
-          <Alert onClose={() => setSyncWarnings([])} severity="warning" sx={{ width: '100%' }}>
-            {syncWarnings.map((msg, idx) => (
-              <Box key={idx} sx={{ display: 'block', mb: syncWarnings.length > 1 ? 0.5 : 0 }}>
-                • {msg}
-              </Box>
-            ))}
-          </Alert>
-        </Snackbar>
+        <Notifications
+          errorMsg={errorMsg}
+          successMsg={successMsg}
+          syncWarnings={syncWarnings}
+          onClearError={() => setErrorMsg(null)}
+          onClearSuccess={() => setSuccessMsg(null)}
+          onClearWarnings={() => setSyncWarnings([])}
+        />
       </Container>
     </Box>
   );

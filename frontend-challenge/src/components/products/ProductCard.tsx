@@ -10,9 +10,10 @@ import {
     useTheme,
     useMediaQuery
 } from '@mui/material';
+import Image from 'next/image';
 import { Minus, Plus, ShoppingCart } from 'lucide-react';
 import { Product } from '@/types';
-import { useCartStore } from '@/store/useCartStore';
+import { useCartStore, selectCartItem, MAX_QUANTITY } from '@/store/useCartStore';
 
 interface ProductCardProps {
     product: Product;
@@ -23,12 +24,13 @@ export default function ProductCard({ product }: ProductCardProps) {
     const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
     const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
-    const { items, addItem, updateQuantity } = useCartStore();
-    const cartItem = items.find((item) => item.productId === product.id);
+    const cartItem = useCartStore(selectCartItem(product.id));
+    const addItem = useCartStore((state) => state.addItem);
+    const updateQuantity = useCartStore((state) => state.updateQuantity);
     const quantity = cartItem?.quantity || 0;
 
     const imageUrl = React.useMemo(() => {
-        if (!product.image) return '/placeholder.jpg';
+        if (!product.image) return '';
         if (isMobile) return product.image.mobile;
         if (isTablet) return product.image.tablet;
         return product.image.desktop;
@@ -42,7 +44,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                     width: '100%',
                     aspectRatio: '1/1',
                     borderRadius: 2,
-                    // overflow: 'hidden', // Removed to prevent clipping the 'Add to Cart' button
                     mb: 3,
                     border: quantity > 0 ? `2px solid ${theme.palette.primary.main}` : 'none',
                     boxShadow: '0px 4px 20px rgba(0, 0, 0, 0.05)',
@@ -52,11 +53,17 @@ export default function ProductCard({ product }: ProductCardProps) {
                     },
                 }}
             >
-                <img
-                    src={imageUrl}
-                    alt={product.name}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
+                {imageUrl ? (
+                    <Image
+                        src={imageUrl}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 600px) 100vw, (max-width: 900px) 50vw, 33vw"
+                        style={{ objectFit: 'cover', borderRadius: 'inherit' }}
+                    />
+                ) : (
+                    <Box sx={{ width: '100%', height: '100%', bgcolor: 'surface.main', borderRadius: 'inherit' }} />
+                )}
 
                 {/* Add to Cart Overlay */}
                 <Box
@@ -75,14 +82,15 @@ export default function ProductCard({ product }: ProductCardProps) {
                             color="inherit"
                             startIcon={<ShoppingCart size={20} color={theme.palette.primary.main} />}
                             onClick={() => addItem(product)}
+                            aria-label={`Add ${product.name} to cart`}
                             sx={{
                                 bgcolor: 'white',
                                 color: theme.palette.text.primary,
-                                border: '1px solid #AD8982',
+                                border: `1px solid ${theme.palette.muted.main}`,
                                 borderRadius: '999px',
                                 width: '100%',
                                 '&:hover': {
-                                    bgcolor: '#F5F5F5',
+                                    bgcolor: 'surface.main',
                                     borderColor: theme.palette.primary.main,
                                 },
                             }}
@@ -105,6 +113,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                             <IconButton
                                 size="small"
                                 onClick={() => updateQuantity(product.id, quantity - 1)}
+                                aria-label={`Decrease quantity of ${product.name}`}
                                 sx={{ color: 'white', border: '1px solid white', p: 0.5 }}
                             >
                                 <Minus size={14} strokeWidth={3} />
@@ -112,7 +121,9 @@ export default function ProductCard({ product }: ProductCardProps) {
                             <Typography fontWeight={600}>{quantity}</Typography>
                             <IconButton
                                 size="small"
-                                onClick={() => updateQuantity(product.id, quantity + 1)}
+                                onClick={() => updateQuantity(product.id, Math.min(quantity + 1, MAX_QUANTITY))}
+                                aria-label={`Increase quantity of ${product.name}`}
+                                disabled={quantity >= MAX_QUANTITY}
                                 sx={{ color: 'white', border: '1px solid white', p: 0.5 }}
                             >
                                 <Plus size={14} strokeWidth={3} />
