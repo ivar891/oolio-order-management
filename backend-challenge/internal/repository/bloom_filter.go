@@ -18,9 +18,9 @@ import (
 const (
 	// Each S3 file contains ~102M promo codes (3 files, up to ~306M unique total).
 	seenEstimate  = 306_000_000
-	seenFPP       = 0.01  // 1% — temporary filter, freed after loading (~350MB)
+	seenFPP       = 0.01 // 1% - temporary filter, freed after loading (~350MB)
 	validEstimate = 50_000_000
-	validFPP      = 0.001 // 0.1% — kept in memory for query-time lookups (~86MB)
+	validFPP      = 0.001 // 0.1% - kept in memory for query-time lookups (~86MB)
 
 	minCodeLen = 8
 	maxCodeLen = 10
@@ -178,7 +178,7 @@ func streamGzipURL(url string, fn func(code string)) (int64, error) {
 			break
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		backoff := time.Duration(1<<attempt) * time.Second
 		slog.Warn("Retrying bloom filter download",
@@ -191,7 +191,7 @@ func streamGzipURL(url string, fn func(code string)) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("HTTP GET (after retries): %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("HTTP %d from %s", resp.StatusCode, url)
@@ -201,7 +201,7 @@ func streamGzipURL(url string, fn func(code string)) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("gzip reader: %w", err)
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	scanner := bufio.NewScanner(bufio.NewReaderSize(gzReader, 128*1024))
 	var count int64

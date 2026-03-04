@@ -1,6 +1,13 @@
+version: "2"
+
 run:
   timeout: 5m
   modules-download-mode: readonly
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
 
 linters:
   enable:
@@ -12,8 +19,6 @@ linters:
     - ineffassign
     - unused
     - misspell
-    - gofmt
-    - goimports
     - prealloc
     - revive
 

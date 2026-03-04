@@ -1,3 +1,4 @@
+// Package logger provides structured logging with OpenTelemetry trace correlation.
 package logger
 
 import (
@@ -59,7 +60,7 @@ func (h *otelslogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &otelslogHandler{h.Handler.WithAttrs(attrs)}
 }
 
-// Global sets the global slog logger.
+// SetGlobal sets the global slog logger.
 func SetGlobal(l *slog.Logger) {
 	slog.SetDefault(l)
 }

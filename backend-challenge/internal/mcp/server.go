@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -109,5 +110,12 @@ func (s *Server) placeOrderHandler(ctx context.Context, request mcp.CallToolRequ
 func (s *Server) StartSSE(addr string) error {
 	sseServer := server.NewSSEServer(s.mcpServer)
 	slog.Info("MCP SSE server listening", slog.String("addr", addr))
-	return http.ListenAndServe(addr, sseServer)
+	srv := &http.Server{
+		Addr:         addr,
+		Handler:      sseServer,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 0, // SSE streams are long-lived
+		IdleTimeout:  60 * time.Second,
+	}
+	return srv.ListenAndServe()
 }

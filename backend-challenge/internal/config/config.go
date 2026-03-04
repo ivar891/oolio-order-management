@@ -13,7 +13,7 @@ import (
 type Config struct {
 	Port           int
 	MCPPort        int
-	APIKey         string
+	APIKey         string //nolint:gosec // loaded from env, not a hardcoded secret
 	DatabaseURL    string
 	OTLPEndpoint   string
 	ServiceName    string

@@ -44,26 +44,26 @@ func main() {
 		slog.Warn("Failed to initialize OpenTelemetry", slog.Any("error", err), slog.String("info", "continuing without tracing"))
 		otelShutdown = func(_ context.Context) error { return nil }
 	}
-	defer otelShutdown(ctx) //nolint:errcheck
+	defer func() { _ = otelShutdown(ctx) }()
 
 	// Connect to PostgreSQL.
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("Failed to connect to database", slog.Any("error", err), slog.String("hint", "Ensure Docker is running and the database container is started (make docker-up)"))
-		os.Exit(1)
+		return
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
 		slog.Error("Failed to ping database", slog.Any("error", err))
-		os.Exit(1)
+		return
 	}
 	slog.Info("Connected to PostgreSQL")
 
 	// Run migrations.
 	if err := runMigrations(cfg.DatabaseURL); err != nil {
 		slog.Error("Failed to run migrations", slog.Any("error", err))
-		os.Exit(1)
+		return
 	}
 
 	// Build bloom filters asynchronously by streaming from S3 URLs.
@@ -153,7 +153,11 @@ func runMigrations(databaseURL string) error {
 	if err != nil {
 		return fmt.Errorf("creating migrator: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		if _, closeErr := m.Close(); closeErr != nil {
+			slog.Warn("Failed to close migrator", slog.Any("error", closeErr))
+		}
+	}()
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("running migrations: %w", err)
