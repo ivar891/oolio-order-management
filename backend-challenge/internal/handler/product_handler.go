@@ -45,3 +45,17 @@ func (h *ProductHandler) GetProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, product)
 }
+
+// ListProductsPaginated handles GET /api/products?page=1&limit=10.
+func (h *ProductHandler) ListProductsPaginated(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	// Defaults are handled in the service layer.
+	result, err := h.svc.ListProductsPaginated(r.Context(), page, limit)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}

@@ -114,7 +114,7 @@ func (b *BloomFilterSet) loadFromURLs(urls []string) error {
 // Memory: only one buffered line is held at a time (no full-file buffering).
 func buildFilterFromGzipURL(url string) (*bloom.BloomFilter, error) {
 	client := &http.Client{
-		Timeout: 2 * time.Minute,
+		Timeout: 10 * time.Minute,
 	}
 
 	var resp *http.Response

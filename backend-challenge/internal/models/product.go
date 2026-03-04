@@ -19,3 +19,12 @@ type ProductImage struct {
 	Tablet    string `json:"tablet"`
 	Desktop   string `json:"desktop"`
 }
+
+// PaginatedResponse wraps a paginated list of items with metadata.
+type PaginatedResponse struct {
+	Data       any `json:"data"`
+	Page       int `json:"page"`
+	Limit      int `json:"limit"`
+	Total      int `json:"total"`
+	TotalPages int `json:"totalPages"`
+}

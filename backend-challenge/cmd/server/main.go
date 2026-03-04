@@ -98,6 +98,7 @@ func main() {
 
 	// Product endpoints (no auth).
 	mux.HandleFunc("GET /api/product", productHandler.ListProducts)
+	mux.HandleFunc("GET /api/products", productHandler.ListProductsPaginated)
 	mux.HandleFunc("GET /api/product/{productId}", productHandler.GetProduct)
 
 	// Order endpoints (auth required).

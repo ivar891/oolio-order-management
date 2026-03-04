@@ -11,6 +11,7 @@ import (
 // ProductRepository defines data access operations for products.
 type ProductRepository interface {
 	List(ctx context.Context) ([]*models.Product, error)
+	ListPaginated(ctx context.Context, limit, offset int) ([]*models.Product, int, error)
 	GetByID(ctx context.Context, id string) (*models.Product, error)
 	GetByIDs(ctx context.Context, ids []string) ([]*models.Product, error)
 }
@@ -46,6 +47,37 @@ func (r *pgProductRepository) List(ctx context.Context) ([]*models.Product, erro
 		products = append(products, p)
 	}
 	return products, rows.Err()
+}
+
+// ListPaginated returns a page of products with total count.
+func (r *pgProductRepository) ListPaginated(ctx context.Context, limit, offset int) ([]*models.Product, int, error) {
+	// Get total count.
+	var total int
+	if err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM products").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, name, price, currency, category, stock_quantity,
+		       image_thumb, image_mobile, image_tablet, image_desktop
+		FROM products
+		ORDER BY id
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var products []*models.Product
+	for rows.Next() {
+		p, err := scanProduct(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		products = append(products, p)
+	}
+	return products, total, rows.Err()
 }
 
 // GetByID returns a single product by ID.
